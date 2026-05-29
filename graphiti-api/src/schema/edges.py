@@ -30,7 +30,8 @@ class MEMBER_OF(BaseModel):
 
 
 class LOCATED_AT(BaseModel):
-    """Character or Item is at a Location. This should usually be time-bounded."""
+    """Notable Item is stored, hidden, or anchored at a Location.
+    Do not use for a Character's current scene location; Marinara World State owns that."""
 
 
 class OWNS(BaseModel):
@@ -87,7 +88,6 @@ EDGE_TYPE_MAP: dict[tuple[str, str], list[str]] = {
     ],
     ("Character", "Faction"): ["MEMBER_OF", "ALLIED_WITH", "BETRAYED", "PERCEIVES_AS"],
     ("Faction", "Character"): ["PERCEIVES_AS"],
-    ("Character", "Location"): ["LOCATED_AT"],
     ("Item", "Location"): ["LOCATED_AT"],
     ("Character", "Item"): ["OWNS"],
     ("Character", "Event"): ["WITNESSED"],

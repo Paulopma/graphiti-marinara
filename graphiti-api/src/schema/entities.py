@@ -61,14 +61,6 @@ class Item(BaseModel):
     is_unique: bool = False
 
 
-class Quest(BaseModel):
-    """An objective or mission given to the protagonist, explicit or implied.
-    Includes quests from NPCs and personal commitments of the player character."""
-
-    status: Literal["active", "completed", "failed", "abandoned", "betrayed"] = "active"
-    stakes: str | None = Field(default=None, description="What is at risk if this fails.")
-
-
 class Promise(BaseModel):
     """An explicit verbal commitment between Characters.
     Use whenever someone promises to do or not do something.
@@ -114,7 +106,6 @@ ENTITY_TYPES: dict[str, type[BaseModel]] = {
     "Faction": Faction,
     "Location": Location,
     "Item": Item,
-    "Quest": Quest,
     "Promise": Promise,
     "Event": Event,
     "Trauma": Trauma,

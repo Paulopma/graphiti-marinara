@@ -36,6 +36,16 @@ class HealthReport:
     services: dict[str, DependencyStatus]
 
 
+@dataclass
+class CharacterAnchorResult:
+    uuid: str
+    name: str
+    labels: list[str]
+    role_class: str
+    aliases: list[str]
+    created: bool
+
+
 class GraphitiService:
     def __init__(self, settings: Settings):
         self._settings = settings
@@ -132,6 +142,52 @@ class GraphitiService:
                 edge_type_map=EDGE_TYPE_MAP,
             )
 
+    async def upsert_character_anchor(
+        self,
+        *,
+        campaign_id: str,
+        name: str,
+        role_class: str,
+        aliases: list[str] | None = None,
+    ) -> CharacterAnchorResult:
+        aliases = _normalize_aliases(aliases or [], name)
+        existing_uuid = await self._find_character_anchor_uuid(campaign_id, name, aliases)
+        created = existing_uuid is None
+        labels = ["Character", _role_class_label(role_class)]
+        summary = _anchor_summary(name, role_class)
+
+        if existing_uuid:
+            node = await EntityNode.get_by_uuid(self._graphiti.driver, existing_uuid)
+            node.labels = _merge_node_labels(node.labels, labels)
+            node.attributes = dict(node.attributes or {})
+            node.attributes["role_class"] = role_class
+            node.attributes["aliases"] = aliases
+            if not node.summary:
+                node.summary = summary
+        else:
+            node = EntityNode(
+                name=name,
+                group_id=campaign_id,
+                labels=labels,
+                summary=summary,
+                attributes={"role_class": role_class, "aliases": aliases},
+            )
+
+        if node.name_embedding is None:
+            await node.generate_name_embedding(self._embedder)
+
+        await node.save(self._graphiti.driver)
+        await self._apply_character_anchor_labels(node.uuid, role_class, aliases)
+
+        return CharacterAnchorResult(
+            uuid=node.uuid,
+            name=node.name,
+            labels=["Entity", *_merge_node_labels(node.labels, labels)],
+            role_class=role_class,
+            aliases=aliases,
+            created=created,
+        )
+
     async def search(
         self,
         *,
@@ -171,6 +227,61 @@ class GraphitiService:
             )
 
         return edges, nodes
+
+    async def _find_character_anchor_uuid(
+        self,
+        campaign_id: str,
+        name: str,
+        aliases: list[str],
+    ) -> str | None:
+        records, _, _ = await self._graphiti.driver.execute_query(
+            """
+            MATCH (n:Entity {group_id: $group_id})
+            WHERE toLower(n.name) = toLower($name)
+               OR any(existing_alias IN coalesce(n.aliases, [])
+                      WHERE toLower(existing_alias) = toLower($name))
+               OR any(input_alias IN $aliases
+                      WHERE toLower(n.name) = toLower(input_alias))
+               OR any(existing_alias IN coalesce(n.aliases, [])
+                      WHERE any(input_alias IN $aliases
+                                WHERE toLower(existing_alias) = toLower(input_alias)))
+            RETURN n.uuid AS uuid
+            LIMIT 1
+            """,
+            group_id=campaign_id,
+            name=name,
+            aliases=aliases,
+            routing_="r",
+        )
+        if not records:
+            return None
+        return records[0].get("uuid")
+
+    async def _apply_character_anchor_labels(
+        self,
+        uuid: str,
+        role_class: str,
+        aliases: list[str],
+    ) -> None:
+        if role_class == "persona":
+            label_query = "REMOVE n:PrimaryCharacter SET n:Character:Persona"
+        elif role_class == "primary_character":
+            label_query = "REMOVE n:Persona SET n:Character:PrimaryCharacter"
+        else:
+            raise ValueError(f"Unsupported character anchor role class: {role_class}")
+
+        await self._graphiti.driver.execute_query(
+            f"""
+            MATCH (n:Entity {{uuid: $uuid}})
+            {label_query}
+            SET n.role_class = $role_class,
+                n.aliases = $aliases
+            RETURN n.uuid AS uuid
+            """,
+            uuid=uuid,
+            role_class=role_class,
+            aliases=aliases,
+        )
 
     def _build_search_filters(
         self,
@@ -242,3 +353,37 @@ def ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _normalize_aliases(aliases: list[str], name: str) -> list[str]:
+    normalized: list[str] = []
+    seen = {name.casefold()}
+    for alias in aliases:
+        clean_alias = alias.strip()
+        folded = clean_alias.casefold()
+        if clean_alias and folded not in seen:
+            normalized.append(clean_alias)
+            seen.add(folded)
+    return normalized
+
+
+def _role_class_label(role_class: str) -> str:
+    if role_class == "persona":
+        return "Persona"
+    if role_class == "primary_character":
+        return "PrimaryCharacter"
+    raise ValueError(f"Unsupported character anchor role class: {role_class}")
+
+
+def _anchor_summary(name: str, role_class: str) -> str:
+    if role_class == "persona":
+        return f"{name} is the campaign persona and central viewpoint character."
+    return f"{name} is a primary campaign character with persistent narrative agency."
+
+
+def _merge_node_labels(existing: list[str], required: list[str]) -> list[str]:
+    labels: list[str] = []
+    for label in [*existing, *required]:
+        if label != "Entity" and label not in labels:
+            labels.append(label)
+    return labels
