@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphiti-api"
+version = "0.1.0"
+description = "FastAPI wrapper for Graphiti-backed TTRPG memory."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110,<1.0",
+    "graphiti-core==0.29.1",
+    "httpx>=0.26,<1.0",
+    "pydantic-settings>=2.2,<3.0",
+    "uvicorn[standard]>=0.27,<1.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = [
+    "config",
+    "graphiti_client",
+    "main",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

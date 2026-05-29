@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "agent_id": "graph_memory_retrieve",
+  "name": "graph_memory_retrieve",
+  "display_name": "Graph Memory Retrieve",
+  "description": "Consulta o knowledge graph e injeta fatos relevantes no contexto do turn.",
+  "agent_type": "pre_generation",
+  "run_type": "context_injection",
+  "enabled": true,
+  "execution_mode": "sync",
+  "timeout_ms": 3000,
+  "llm_required": false,
+  "tool": {
+    "type": "webhook",
+    "method": "POST",
+    "url": "http://localhost:8765/search",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body_template": {
+      "campaign_id": "{{chat_id}}",
+      "query": "{{user_message}} | location: {{world_state.location}} | present: {{world_state.present_characters_csv}}",
+      "limit": 8,
+      "as_of_in_game_time": "{{world_state.in_game_datetime}}"
+    }
+  },
+  "response_handler": {
+    "type": "context_injection",
+    "format_template": "[GRAPH MEMORY - fatos relevantes do historico da campanha:]\n{{#facts}}\n- {{fact}}{{/facts}}\n{{#entities}}\n- entidade: {{name}}{{/entities}}\n[fim da injecao]"
+  },
+  "placeholders": {
+    "notes": [
+      "This template assumes the Marinara UI can render a response handler from search JSON.",
+      "If the actual import format differs, preserve the webhook payload and the intended context injection text."
+    ],
+    "macro_fallbacks": {
+      "chat_id": "chat/session identifier",
+      "user_message": "latest user message",
+      "world_state.location": "current location",
+      "world_state.present_characters_csv": "comma-separated present characters",
+      "world_state.in_game_datetime": "in-game timestamp"
+    }
+  }
+}

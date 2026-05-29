@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "bundle_name": "graphiti-memory-agents",
+  "description": "Import bundle containing the Graphiti ingest and retrieve custom agents.",
+  "agents": [
+    {
+      "ref": "./ingest-agent.json",
+      "name": "graph_memory_ingest"
+    },
+    {
+      "ref": "./retrieve-agent.json",
+      "name": "graph_memory_retrieve"
+    }
+  ],
+  "import_notes": [
+    "This bundle is a best-effort export format for the Marinara Extensions/Custom Agents UI.",
+    "If the UI expects fully expanded objects instead of references, import the two agent files individually."
+  ]
+}

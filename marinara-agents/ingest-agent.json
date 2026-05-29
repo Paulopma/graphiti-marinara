@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "agent_id": "graph_memory_ingest",
+  "name": "graph_memory_ingest",
+  "display_name": "Graph Memory Ingest",
+  "description": "Envia o turn completo para o Graphiti para extracao de entidades e atualizacao do knowledge graph.",
+  "agent_type": "post_processing",
+  "run_type": "custom",
+  "enabled": true,
+  "turn_data_access": true,
+  "execution_mode": "async",
+  "timeout_ms": 0,
+  "llm_required": false,
+  "tool": {
+    "type": "webhook",
+    "method": "POST",
+    "url": "http://localhost:8765/episodes/add",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body_template": {
+      "campaign_id": "{{chat_id}}",
+      "episode_body": "User: {{user_message}}\n\nAssistant: {{assistant_message}}",
+      "source_description": "Marinara turn {{message_index}}",
+      "reference_time": "{{world_state.in_game_datetime}}",
+      "metadata": {
+        "location": "{{world_state.location}}",
+        "present_characters": "{{world_state.present_characters_json_or_array}}",
+        "turn_number": "{{message_index}}"
+      }
+    }
+  },
+  "placeholders": {
+    "notes": [
+      "This template assumes Marinara exposes turn data macros with the names shown above.",
+      "If the UI expects a different agent schema, map these fields into the equivalent webhook tool config."
+    ],
+    "macro_fallbacks": {
+      "chat_id": "chat/session identifier",
+      "user_message": "latest user message",
+      "assistant_message": "latest assistant reply",
+      "message_index": "turn counter",
+      "world_state.in_game_datetime": "in-game timestamp",
+      "world_state.location": "current location",
+      "world_state.present_characters_json_or_array": "JSON array of currently present characters; do not wrap in quotes if Marinara supports raw JSON macros"
+    }
+  }
+}
